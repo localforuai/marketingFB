@@ -38,6 +38,7 @@ function App() {
   const [rewritingCard, setRewritingCard] = useState<string | null>(null);
   const [generatingMedia, setGeneratingMedia] = useState<string | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<Record<string, 'ai' | 'upload'>>({});
+  const [postingCard, setPostingCard] = useState<string | null>(null); // State for loading indicator
 
   useEffect(() => {
     // Initialize Facebook SDK
@@ -164,6 +165,7 @@ function App() {
             selectedMedia: null,
             fbPage: null,
             isExpanded: false,
+            isArtworkExpanded: false,
             aiPrompt: prefillPrompt
           }
         }));
@@ -460,37 +462,81 @@ function App() {
         alert(selectedLanguage === 'th' ? 'การเชื่อมต่อถูกยกเลิก' : 'Login cancelled');
       }
     }, {
-      scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata',
+      scope: 'pages_show_list,pages_read_engagement,pages_manage_posts', // pages_manage_metadata is often not needed
       auth_type: 'rerequest'
     });
   };
 
+  // ========== START: REVISED FUNCTION ==========
   const postToFacebook = async (cardId: string) => {
     const card = cardData[cardId];
     if (!card || !card.approvedCaption || !card.selectedMedia || !card.fbPage) return;
-
-    const formData = new FormData();
-    formData.append('access_token', card.fbPage.access_token);
-
-    if (card.selectedMedia.type === 'image') {
-      formData.append('caption', card.approvedCaption);
-      if (card.selectedMedia.source === 'upload') {
-        formData.append('source', card.selectedMedia.data);
-      } else {
-        const blob = await (await fetch(card.selectedMedia.url!)).blob();
-        formData.append('source', blob);
-      }
-
-      const response = await fetch(`https://graph.facebook.com/${card.fbPage.id}/photos`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (response.ok) {
+  
+    setPostingCard(cardId); // Show loading indicator
+  
+    try {
+      if (card.selectedMedia.type === 'image') {
+        const formData = new FormData();
+        formData.append('access_token', card.fbPage.access_token);
+        formData.append('published', 'false'); // Upload as an unpublished photo first
+  
+        // Convert the image data to a Blob to ensure it's sent correctly
+        if (card.selectedMedia.source === 'upload') {
+          formData.append('source', card.selectedMedia.data as File);
+        } else { // AI-generated image
+          const response = await fetch(card.selectedMedia.url!);
+          const blob = await response.blob();
+          formData.append('source', blob);
+        }
+  
+        // Step 1: Upload the photo to get a media ID
+        const uploadResponse = await fetch(`https://graph.facebook.com/v19.0/${card.fbPage.id}/photos`, {
+          method: 'POST',
+          body: formData,
+        });
+  
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          console.error('Facebook Upload Error:', errorData);
+          throw new Error(errorData.error.message || 'Failed to upload photo.');
+        }
+  
+        const uploadResult = await uploadResponse.json();
+        const mediaId = uploadResult.id;
+  
+        // Step 2: Create the post using the media ID
+        const postResponse = await fetch(`https://graph.facebook.com/v19.0/${card.fbPage.id}/feed`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: card.approvedCaption,
+            attached_media: `[{"media_fbid":"${mediaId}"}]`,
+            access_token: card.fbPage.access_token,
+          }),
+        });
+  
+        if (!postResponse.ok) {
+          const errorData = await postResponse.json();
+          console.error('Facebook Post Error:', errorData);
+          throw new Error(errorData.error.message || 'Failed to create post.');
+        }
+  
         alert(selectedLanguage === 'th' ? 'โพสต์สำเร็จ!' : 'Posted successfully!');
+  
+      } else if (card.selectedMedia.type === 'video') {
+        alert('Video posting is not yet implemented.');
       }
+  
+    } catch (error: any) {
+      console.error(error);
+      alert(`${selectedLanguage === 'th' ? 'เกิดข้อผิดพลาดในการโพสต์: ' : 'Error posting: '}${error.message}`);
+    } finally {
+        setPostingCard(null); // Hide loading indicator
     }
   };
+  // ========== END: REVISED FUNCTION ==========
 
   const isReadyToPost = (cardId: string) => {
     const card = cardData[cardId];
@@ -654,105 +700,64 @@ function App() {
 
                   {card.isExpanded && card.fullPost && (
                     <>
-                      <button
-                        onClick={() => setCardData(prev => ({
-                          ...prev,
-                          [idea.id]: { ...prev[idea.id], isExpanded: !card.isExpanded }
-                        }))}
-                        className="mt-4 w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        <h4 className="font-bold text-lg">
-                          {selectedLanguage === 'th' ? 'โพสต์ฉบับเต็ม' : 'Full Post'}
-                        </h4>
-                        <svg className={`w-5 h-5 transition-transform ${card.isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-
-                      {card.isExpanded && (
-                        <div className="p-4 bg-gray-50 rounded-b-lg">
-                          <div className="flex justify-end mb-2">
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(card.fullPost || '');
-                                alert(selectedLanguage === 'th' ? 'คัดลอกแล้ว!' : 'Copied!');
-                              }}
-                              className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                            >
-                              <Copy size={14} />
-                              {selectedLanguage === 'th' ? 'คัดลอก' : 'Copy'}
-                            </button>
-                          </div>
-                          <div
-                            className="text-gray-700 whitespace-pre-wrap mb-3"
-                            contentEditable
-                            suppressContentEditableWarning
-                            onBlur={(e) => setCardData(prev => ({
-                              ...prev,
-                              [idea.id]: { ...prev[idea.id], fullPost: e.currentTarget.innerText }
-                            }))}
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="flex justify-end mb-2">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(card.fullPost || '');
+                              alert(selectedLanguage === 'th' ? 'คัดลอกแล้ว!' : 'Copied!');
+                            }}
+                            className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                           >
-                            {card.fullPost}
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <button
-                              onClick={() => approveCaption(idea.id)}
-                              className={`text-sm font-medium py-2 px-4 rounded-full ${
-                                card.isApproved
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-                              }`}
+                            <Copy size={14} />
+                            {selectedLanguage === 'th' ? 'คัดลอก' : 'Copy'}
+                          </button>
+                        </div>
+                        <div
+                          className="text-gray-700 whitespace-pre-wrap mb-3"
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => setCardData(prev => ({
+                            ...prev,
+                            [idea.id]: { ...prev[idea.id], fullPost: e.currentTarget.innerText }
+                          }))}
+                        >
+                          {card.fullPost}
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <button
+                            onClick={() => approveCaption(idea.id)}
+                            className={`text-sm font-medium py-2 px-4 rounded-full ${
+                              card.isApproved
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                            }`}
+                          >
+                            {card.isApproved
+                              ? (selectedLanguage === 'th' ? 'ยกเลิกอนุมัติ' : 'Unapprove')
+                              : (selectedLanguage === 'th' ? 'อนุมัติ Caption' : 'Approve Caption')}
+                          </button>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs font-semibold">
+                              {selectedLanguage === 'th' ? '✨ ปรับโทน' : '✨ Adjust Tone'}
+                            </label>
+                            <select
+                              onChange={(e) => rewriteTone(idea.id, e.target.value)}
+                              className="border border-gray-300 rounded-md p-1 text-xs"
+                              defaultValue="default"
                             >
-                              {card.isApproved
-                                ? (selectedLanguage === 'th' ? 'ยกเลิกอนุมัติ' : 'Unapprove')
-                                : (selectedLanguage === 'th' ? 'อนุมัติ Caption' : 'Approve Caption')}
-                            </button>
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs font-semibold">
-                                {selectedLanguage === 'th' ? '✨ ปรับโทน' : '✨ Adjust Tone'}
-                              </label>
-                              <select
-                                onChange={(e) => rewriteTone(idea.id, e.target.value)}
-                                className="border border-gray-300 rounded-md p-1 text-xs"
-                              >
-                                {tones.map(t => (
-                                  <option key={t.value} value={t.value}>{t.label}</option>
-                                ))}
-                              </select>
-                              {rewritingCard === idea.id && (
-                                <div className="text-xs">
-                                  <RefreshCw className="animate-spin inline" size={12} />
-                                </div>
-                              )}
-                            </div>
+                              {tones.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                              ))}
+                            </select>
+                            {rewritingCard === idea.id && (
+                              <div className="text-xs">
+                                <RefreshCw className="animate-spin inline" size={12} />
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )}
-
-                      {card.artworkRecommendation && (
-                        <>
-                          <button
-                            onClick={() => setCardData(prev => ({
-                              ...prev,
-                              [idea.id]: { ...prev[idea.id], isArtworkExpanded: !card.isArtworkExpanded }
-                            }))}
-                            className="mt-4 w-full flex items-center justify-between p-4 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
-                          >
-                            <h4 className="font-bold text-lg">
-                              {selectedLanguage === 'th' ? 'คำแนะนำ Artwork' : 'Artwork Recommendation'}
-                            </h4>
-                            <svg className={`w-5 h-5 transition-transform ${card.isArtworkExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-
-                          {card.isArtworkExpanded && (
-                            <div className="p-4 bg-white border border-gray-200 border-t-0 rounded-b-lg">
-                              <div className="text-gray-700 whitespace-pre-wrap">{card.artworkRecommendation}</div>
-                            </div>
-                          )}
-                        </>
-                      )}
+                      </div>
 
                       <div className="border-t pt-4 mt-4">
                         <h4 className="font-bold text-lg mb-2">
@@ -843,70 +848,53 @@ function App() {
                         )}
                       </div>
 
-                      <div className="border-t pt-4">
-                        <h4 className="font-bold text-lg mb-2">
-                          {selectedLanguage === 'th' ? 'Caption ที่อนุมัติ' : 'Approved Caption'}
-                        </h4>
-                        {card.isApproved && card.approvedCaption ? (
-                          <div
-                            className="bg-white p-3 rounded-md text-sm border border-gray-300 min-h-[50px]"
-                            contentEditable
-                            suppressContentEditableWarning
-                            onBlur={(e) => updateApprovedCaption(idea.id, e.currentTarget.innerText)}
-                          >
-                            {card.approvedCaption}
-                          </div>
-                        ) : (
-                          <div className="bg-gray-100 p-3 rounded-md text-sm text-gray-500">
-                            {selectedLanguage === 'th' ? 'อนุมัติ Caption เพื่อแก้ไขที่นี่' : 'Approve a caption to edit it here'}
-                          </div>
-                        )}
-
+                      <div className="border-t pt-4 mt-4">
                         <div className="mt-4 space-y-1 text-sm">
-                          <div className={readyChecks.caption ? 'text-green-600' : 'text-gray-500'}>
-                            {readyChecks.caption ? <Check className="inline" size={16} /> : <Circle className="inline" size={16} />}
-                            {' '}{selectedLanguage === 'th' ? 'อนุมัติ Caption แล้ว' : 'Caption approved'}
-                          </div>
-                          <div className={readyChecks.media ? 'text-green-600' : 'text-gray-500'}>
-                            {readyChecks.media ? <Check className="inline" size={16} /> : <Circle className="inline" size={16} />}
-                            {' '}{selectedLanguage === 'th' ? 'เลือกมีเดียแล้ว' : 'Media selected'}
-                          </div>
-                          <div className={readyChecks.page ? 'text-green-600' : 'text-gray-500'}>
-                            {readyChecks.page ? <Check className="inline" size={16} /> : <Circle className="inline" size={16} />}
-                            {' '}{selectedLanguage === 'th' ? 'เชื่อมต่อ Facebook Page แล้ว' : 'Facebook Page connected'}
-                          </div>
+                            <div className={readyChecks.caption ? 'text-green-600' : 'text-gray-500'}>
+                                {readyChecks.caption ? <Check className="inline" size={16} /> : <Circle className="inline" size={16} />}
+                                {' '}{selectedLanguage === 'th' ? 'อนุมัติ Caption แล้ว' : 'Caption approved'}
+                            </div>
+                            <div className={readyChecks.media ? 'text-green-600' : 'text-gray-500'}>
+                                {readyChecks.media ? <Check className="inline" size={16} /> : <Circle className="inline" size={16} />}
+                                {' '}{selectedLanguage === 'th' ? 'เลือกมีเดียแล้ว' : 'Media selected'}
+                            </div>
+                            <div className={readyChecks.page ? 'text-green-600' : 'text-gray-500'}>
+                                {readyChecks.page ? <Check className="inline" size={16} /> : <Circle className="inline" size={16} />}
+                                {' '}{selectedLanguage === 'th' ? 'เชื่อมต่อ Facebook Page แล้ว' : 'Facebook Page connected'}
+                            </div>
                         </div>
 
                         <div className="mt-3 flex gap-2">
                           {!card.fbPage ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                console.log('Connect Facebook button clicked for card:', idea.id);
-                                connectFacebook(idea.id);
-                              }}
+                              onClick={() => connectFacebook(idea.id)}
                               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex-grow flex items-center justify-center gap-2 cursor-pointer"
-                              style={{ pointerEvents: 'auto' }}
                             >
                               <Facebook size={18} />
                               {selectedLanguage === 'th' ? 'เชื่อมต่อ Facebook Page' : 'Connect Facebook Page'}
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              disabled
-                              className="bg-gray-400 cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg flex-grow flex items-center justify-center gap-2"
+                            <div
+                              className="bg-gray-200 border border-gray-300 text-gray-600 font-bold py-2 px-4 rounded-lg flex-grow flex items-center justify-center gap-2"
                             >
                               <Facebook size={18} />
-                              Connected: {card.fbPage.name}
-                            </button>
+                              Connected: {card.fbPage.name.substring(0, 15)}...
+                            </div>
                           )}
                           <button
                             onClick={() => postToFacebook(idea.id)}
-                            disabled={!isReadyToPost(idea.id)}
-                            className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 flex-grow disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            disabled={!isReadyToPost(idea.id) || postingCard === idea.id}
+                            className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 flex-grow disabled:bg-gray-400 disabled:cursor-not-allowed"
                           >
-                            {selectedLanguage === 'th' ? 'โพสต์ไปที่ Facebook Page' : 'Post to Facebook Page'}
+                            {postingCard === idea.id ? (
+                                <span className="flex items-center justify-center gap-2">
+                                <RefreshCw className="animate-spin" size={16} />
+                                {selectedLanguage === 'th' ? 'กำลังโพสต์...' : 'Posting...'}
+                                </span>
+                            ) : (
+                                selectedLanguage === 'th' ? 'โพสต์ไปที่ Facebook' : 'Post to Facebook'
+                            )}
                           </button>
                         </div>
                       </div>

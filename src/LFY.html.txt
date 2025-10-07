@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เครื่องมือช่วยคิดคอนเทนต์ Local For You</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+        }
+        .gradient-text {
+            background: linear-gradient(to right, #10B981, #3B82F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .category-btn {
+            transition: all 0.3s ease;
+        }
+        .category-btn.selected {
+            background-color: #10B981;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+        }
+        #results-container .idea-card {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.5s forwards;
+        }
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .copy-btn, .expand-btn, .media-tab-btn {
+            transition: all 0.2s ease;
+        }
+        .media-tab-btn.active {
+            border-color: #10B981;
+            color: #10B981;
+            background-color: #ECFDF5;
+        }
+        .expanded-content {
+            white-space: pre-wrap; /* Preserve line breaks from Gemini */
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.success { background-color: #28a745; }
+        .toast.error { background-color: #dc3545; }
+        .media-selected::after {
+            content: '✔';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #10B981;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            border: 2px solid white;
+        }
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip-container .tooltip-text {
+            visibility: hidden;
+            width: 220px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+         .tooltip-container .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #555 transparent transparent transparent;
+        }
+        .tooltip-container:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="fb-root"></div>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold gradient-text" data-i18n="headerTitle">Local For You</h1>
+            <p class="text-xl md:text-2xl text-gray-600 mt-2" data-i18n="headerSubtitle">เครื่องมือช่วยคิดคอนเทนต์</p>
+            <p class="text-gray-500 mt-4 max-w-2xl mx-auto" data-i18n="headerDescription">เลือกหมวดหมู่ที่คุณสนใจ แล้วให้ AI ช่วยสร้างสรรค์ไอเดียสุดปังสำหรับโปรโมทความเป็นท้องถิ่นที่ไม่เหมือนใคร!</p>
+        </header>
+
+        <!-- New Controls: Language and Country -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 max-w-lg mx-auto">
+             <div>
+                <label for="language-selector" class="block text-sm font-medium text-gray-700 mb-1" data-i18n="languageLabel">ภาษา</label>
+                <select id="language-selector" class="block w-full bg-white border border-gray-300 text-gray-700 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="th">ไทย</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <div>
+                <label for="country-selector" class="block text-sm font-medium text-gray-700 mb-1" data-i18n="countryLabel">ประเทศ</label>
+                <select id="country-selector" class="block w-full bg-white border border-gray-300 text-gray-700 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="Thailand">Thailand</option>
+                    <option value="USA">USA</option>
+                    <option value="UK">UK</option>
+                    <option value="Australia">Australia</option>
+                    <option value="Canada">Canada</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Month Selection -->
+        <div class="mb-8">
+            <label for="month-selector" class="block text-lg font-semibold text-gray-700 mb-3 text-center" data-i18n="monthLabel">เลือกเดือน (ถ้ามี)</label>
+            <select id="month-selector" class="block w-full max-w-xs mx-auto bg-white border border-gray-300 text-gray-700 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                <option value="" data-i18n="monthDefault">-- ไม่ระบุเดือน --</option>
+                <option value="January" data-i18n-month="january">มกราคม</option>
+                <option value="February" data-i18n-month="february">กุมภาพันธ์</option>
+                <option value="March" data-i18n-month="march">มีนาคม</option>
+                <option value="April" data-i18n-month="april">เมษายน</option>
+                <option value="May" data-i18n-month="may">พฤษภาคม</option>
+                <option value="June" data-i18n-month="june">มิถุนายน</option>
+                <option value="July" data-i18n-month="july">กรกฎาคม</option>
+                <option value="August" data-i18n-month="august">สิงหาคม</option>
+                <option value="September" data-i18n-month="september">กันยายน</option>
+                <option value="October" data-i18n-month="october">ตุลาคม</option>
+                <option value="November" data-i18n-month="november">พฤศจิกายน</option>
+                <option value="December" data-i18n-month="december">ธันวาคม</option>
+            </select>
+        </div>
+
+        <!-- Category Selection -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-3 text-center" data-i18n="categoryLabel">เลือกหมวดหมู่คอนเทนต์</h2>
+            <div id="category-selector" class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                 <button data-category="Content to Share" class="category-btn bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-emerald-400 flex flex-col items-center justify-center text-center h-full">
+                    <span class="text-2xl">📢</span>
+                    <span class="block mt-1 font-medium text-sm" data-i18n="catContentShare">Content to Share</span>
+                </button>
+                <button data-category="Product Highlight" class="category-btn bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-emerald-400 flex flex-col items-center justify-center text-center h-full">
+                    <span class="text-2xl">✨</span>
+                    <span class="block mt-1 font-medium text-sm" data-i18n="catProductHighlight">Product Highlight</span>
+                </button>
+                <button data-category="Audience Application" class="category-btn bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-emerald-400 flex flex-col items-center justify-center text-center h-full">
+                    <span class="text-2xl">🙋‍♀️</span>
+                    <span class="block mt-1 font-medium text-sm" data-i18n="catAudienceApplication">Audience Application</span>
+                </button>
+                <button data-category="Activity/Mini Game" class="category-btn bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-emerald-400 flex flex-col items-center justify-center text-center h-full">
+                    <span class="text-2xl">🎲</span>
+                    <span class="block mt-1 font-medium text-sm" data-i18n="catActivityGame">Activity/Mini Game</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="text-center my-8">
+            <button id="generate-btn" class="bg-emerald-500 text-white font-bold py-3 px-8 rounded-full hover:bg-emerald-600 transition-transform transform hover:scale-105 shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none" disabled data-i18n="generateButton">
+                สร้างไอเดียคอนเทนต์
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div id="results-section" class="mt-10">
+            <div id="loader" class="hidden text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                <p class="mt-2 text-gray-600" data-i18n="loaderText">กำลังสร้างสรรค์ไอเดีย... โปรดรอสักครู่</p>
+            </div>
+            <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-center">
+                <strong class="font-bold" data-i18n="errorTitle">เกิดข้อผิดพลาด!</strong>
+                <span class="block sm:inline" data-i18n="errorMessage">ไม่สามารถสร้างไอเดียได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง</span>
+            </div>
+            <div id="results-container" class="space-y-4">
+                <!-- Generated ideas will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-container"></div>
+
+    <script type="module">
+        // This is a placeholder for your actual Facebook App ID
+        const FACEBOOK_APP_ID = 'YOUR_FACEBOOK_APP_ID'; 
+        // IMPORTANT: Replace with your Google AI API key
+        const GEMINI_API_KEY = "AIzaSyDW6Ov8xShNa6HAEpDx6Q8IZK1nDPvm10c";
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Element Refs
+            const categorySelector = document.getElementById('category-selector');
+            const monthSelector = document.getElementById('month-selector');
+            const languageSelector = document.getElementById('language-selector');
+            const countrySelector = document.getElementById('country-selector');
+            const generateBtn = document.getElementById('generate-btn');
+            const loader = document.getElementById('loader');
+            const resultsContainer = document.getElementById('results-container');
+            const errorMessage = document.getElementById('error-message');
+
+            let selectedCategory = null;
+            let currentCardData = {}; // To store state for each card { cardId: { ...data } }
+            
+            // --- NEW FEATURES STATE & DATA ---
+            
+            // 1. Internationalization (i18n)
+            const translations = {
+                en: {
+                    pageTitle: "Local For You Content Idea Generator",
+                    headerTitle: "Local For You",
+                    headerSubtitle: "Content Idea Generator",
+                    headerDescription: "Select a category that interests you and let AI create amazing ideas to promote your unique local business!",
+                    languageLabel: "Language",
+                    countryLabel: "Country",
+                    monthLabel: "Select Month (Optional)",
+                    monthDefault: "-- No specific month --",
+                    months: { january: "January", february: "February", march: "March", april: "April", may: "May", june: "June", july: "July", august: "August", september: "September", october: "October", november: "November", december: "December" },
+                    categoryLabel: "Select Content Category",
+                    catContentShare: "Content to Share",
+                    catProductHighlight: "Product Highlight",
+                    catAudienceApplication: "Audience Application",
+                    catActivityGame: "Activity/Mini Game",
+                    generateButton: "Generate Content Ideas",
+                    loaderText: "Generating creative ideas... Please wait",
+                    errorTitle: "An error occurred!",
+                    errorMessage: "Could not generate ideas at this time. Please try again.",
+                    copy: "Copy",
+                    copied: "Copied!",
+                    expandButton: "✨ Write Full Version",
+                    collapseButton: "Collapse",
+                    writing: "Writing...",
+                    fullPost: "Full Post",
+                    artworkRec: "Artwork Recommendation",
+                    approveCaption: "Approve Caption",
+                    unapproveCaption: "Unapprove",
+                    captionApproved: "Caption Approved",
+                    editableLabel: "Editable",
+                    mediaTitle: "Media",
+                    aiTab: "AI Generate (Google AI)",
+                    uploadTab: "Upload (Image/Video)",
+                    aiPromptLabel: "Prompt",
+                    aspectRatioLabel: "Aspect Ratio",
+                    generateMedia: "Generate",
+                    regenerateMedia: "Regenerate",
+                    useThis: "Use This",
+                    generating: "Generating...",
+                    uploadAreaText: "Drag & drop file or",
+                    browse: "Browse",
+                    replace: "Replace",
+                    remove: "Remove",
+                    mediaHelperText: "Please select an image/video to enable posting.",
+                    approvedCaptionTitle: "Approved Caption",
+                    noCaption: "Approve a caption to edit it here.",
+                    postToFacebook: "Post to Facebook Page",
+                    connectFacebook: "Connect Facebook Page",
+                    postSuccess: "Successfully posted to Facebook!",
+                    postError: "Failed to post to Facebook.",
+                    imgGenError: "Image generation failed. Please try again.",
+                    imgGenSafety: "Image generation blocked for safety reasons.",
+                    fbConnectError: "Could not connect to Facebook.",
+                    adjustToneLabel: "✨ Adjust Tone",
+                    rewriteButton: "Rewrite",
+                    rewriting: "Rewriting...",
+                    toneDefault: "Default",
+                    toneProfessional: "Professional",
+                    tonePlayful: "Playful",
+                    tonePersuasive: "Persuasive",
+                    readinessChecklist: {
+                        caption: "Caption approved",
+                        media: "Media selected",
+                        page: "Facebook Page connected"
+                    },
+                    tooltipText: "You must complete all three steps before posting."
+                },
+                th: {
+                    pageTitle: "เครื่องมือช่วยคิดคอนเทนต์ Local For You",
+                    headerTitle: "Local For You",
+                    headerSubtitle: "เครื่องมือช่วยคิดคอนเทนต์",
+                    headerDescription: "เลือกหมวดหมู่ที่คุณสนใจ แล้วให้ AI ช่วยสร้างสรรค์ไอเดียสุดปังสำหรับโปรโมทความเป็นท้องถิ่นที่ไม่เหมือนใคร!",
+                    languageLabel: "ภาษา",
+                    countryLabel: "ประเทศ",
+                    monthLabel: "เลือกเดือน (ถ้ามี)",
+                    monthDefault: "-- ไม่ระบุเดือน --",
+                    months: { january: "มกราคม", february: "กุมภาพันธ์", march: "มีนาคม", april: "เมษายน", may: "พฤษภาคม", june: "มิถุนายน", july: "กรกฎาคม", august: "สิงหาคม", september: "กันยายน", october: "ตุลาคม", november: "พฤศจิกายน", december: "ธันวาคม" },
+                    categoryLabel: "เลือกหมวดหมู่คอนเทนต์",
+                    catContentShare: "Content to Share",
+                    catProductHighlight: "Product Highlight",
+                    catAudienceApplication: "Audience Application",
+                    catActivityGame: "Activity/Mini Game",
+                    generateButton: "สร้างไอเดียคอนเทนต์",
+                    loaderText: "กำลังสร้างสรรค์ไอเดีย... โปรดรอสักครู่",
+                    errorTitle: "เกิดข้อผิดพลาด!",
+                    errorMessage: "ไม่สามารถสร้างไอเดียได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
+                    copy: "คัดลอก",
+                    copied: "คัดลอกแล้ว!",
+                    expandButton: "✨ เขียนฉบับเต็ม",
+                    collapseButton: "ย่อลง",
+                    writing: "กำลังเขียน...",
+                    fullPost: "โพสต์ฉบับเต็ม",
+                    artworkRec: "คำแนะนำ Artwork",
+                    approveCaption: "อนุมัติ Caption",
+                    unapproveCaption: "ยกเลิกอนุมัติ",
+                    captionApproved: "อนุมัติแล้ว",
+                    editableLabel: "แก้ไขได้",
+                    mediaTitle: "มีเดีย",
+                    aiTab: "สร้างด้วย AI (Google AI)",
+                    uploadTab: "อัปโหลด (รูป/วิดีโอ)",
+                    aiPromptLabel: "คำสั่ง (Prompt)",
+                    aspectRatioLabel: "สัดส่วนภาพ",
+                    generateMedia: "สร้าง",
+                    regenerateMedia: "สร้างใหม่",
+                    useThis: "ใช้ภาพนี้",
+                    generating: "กำลังสร้าง...",
+                    uploadAreaText: "ลากไฟล์มาวาง หรือ",
+                    browse: "เลือกไฟล์",
+                    replace: "เปลี่ยน",
+                    remove: "ลบ",
+                    mediaHelperText: "กรุณาเลือกภาพ/วิดีโอเพื่อเปิดการโพสต์",
+                    approvedCaptionTitle: "Caption ที่อนุมัติ",
+                    noCaption: "อนุมัติ Caption เพื่อแก้ไขที่นี่",
+                    postToFacebook: "โพสต์ไปที่ Facebook Page",
+                    connectFacebook: "เชื่อมต่อ Facebook Page",
+                    postSuccess: "โพสต์ไปที่ Facebook สำเร็จ!",
+                    postError: "ไม่สามารถโพสต์ไปที่ Facebook ได้",
+                    imgGenError: "สร้างรูปภาพไม่สำเร็จ กรุณาลองใหม่",
+                    imgGenSafety: "การสร้างรูปภาพถูกบล็อกเนื่องด้วยเหตุผลด้านความปลอดภัย",
+                    fbConnectError: "เชื่อมต่อ Facebook ไม่สำเร็จ",
+                    adjustToneLabel: "✨ ปรับโทน",
+                    rewriteButton: "เขียนใหม่",
+                    rewriting: "กำลังเขียนใหม่...",
+                    toneDefault: "ค่าเริ่มต้น",
+                    toneProfessional: "เป็นทางการ",
+                    tonePlayful: "เป็นกันเอง/สนุกสนาน",
+                    tonePersuasive: "โน้มน้าวใจ",
+                     readinessChecklist: {
+                        caption: "อนุมัติ Caption แล้ว",
+                        media: "เลือกมีเดียแล้ว",
+                        page: "เชื่อมต่อ Facebook Page แล้ว"
+                    },
+                    tooltipText: "ต้องทำครบ 3 อย่างนี้ก่อนโพสต์ได้"
+                }
+            };
+
+            const getTranslation = (key, subkey) => {
+                const lang = languageSelector.value;
+                if (subkey) {
+                    return translations[lang][key]?.[subkey] || subkey;
+                }
+                return translations[lang][key] || key;
+            };
+
+            const updateUIForLanguage = () => {
+                const lang = languageSelector.value;
+                document.documentElement.lang = lang;
+                document.title = getTranslation('pageTitle');
+                
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.dataset.i18n;
+                    el.textContent = getTranslation(key);
+                });
+
+                document.querySelectorAll('[data-i18n-month]').forEach(el => {
+                    const key = el.dataset.i18nMonth;
+                    el.textContent = translations[lang].months[key];
+                });
+            };
+            
+            languageSelector.addEventListener('change', updateUIForLanguage);
+
+
+            // 2. Public Holidays Data
+            const publicHolidays = {
+                "Thailand": { "April": "Songkran Festival", "May": "Labour Day, Coronation Day", "December": "Constitution Day, New Year's Eve" },
+                "USA": { "January": "Martin Luther King, Jr. Day", "July": "Independence Day", "November": "Thanksgiving Day", "December": "Christmas Day" },
+                "UK": { "April": "Good Friday, Easter Monday", "May": "Early May bank holiday, Spring bank holiday", "August": "Summer bank holiday", "December": "Christmas Day, Boxing Day" },
+                "Australia": { "January": "Australia Day", "April": "Good Friday, Easter Monday", "April": "Anzac Day", "December": "Christmas Day, Boxing Day" },
+                "Canada": { "July": "Canada Day", "September": "Labour Day", "October": "Thanksgiving Day", "December": "Christmas Day" }
+            };
+
+            const getHolidays = (country, month) => {
+                return publicHolidays[country]?.[month] || null;
+            }
+
+            // --- CORE LOGIC ---
+            
+            categorySelector.addEventListener('click', (e) => {
+                const button = e.target.closest('.category-btn');
+                if (!button) return;
+
+                document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
+                button.classList.add('selected');
+                selectedCategory = button.dataset.category;
+                generateBtn.disabled = false;
+            });
+
+            generateBtn.addEventListener('click', () => {
+                if (selectedCategory) {
+                    const selectedMonth = monthSelector.options[monthSelector.selectedIndex].value;
+                    const selectedCountry = countrySelector.value;
+                    const selectedLanguage = languageSelector.value;
+                    generateIdeas(selectedCategory, selectedMonth, selectedCountry, selectedLanguage);
+                }
+            });
+
+            const callGeminiAPI = async (userQuery, retries = 3, delay = 1000) => {
+                const lang = languageSelector.value;
+                const systemPrompt = lang === 'th'
+                    ? "คุณคือผู้เชี่ยวชาญด้านการตลาดดิจิทัลและคอนเทนต์ครีเอเตอร์ของบริษัท 'Local For You' (เว็บไซต์: https://localforyou.com/) ซึ่งให้บริการโซลูชันการตลาดและเทคโนโลยีสำหรับร้านอาหารและร้านนวดไทยโดยเฉพาะ ภารกิจของคุณคือการสร้างสรรค์คอนเทนต์สำหรับโซเชียลมีเดียเพื่อสื่อสารกับกลุ่มเป้าหมายที่เป็น 'เจ้าของกิจการ' โดยเนื้อหาต้องมีประโยชน์ น่าสนใจ และแสดงให้เห็นถึงความเชี่ยวชาญของ Local For You ในการช่วยให้ธุรกิจของพวกเขาเติบโต ไอเดียทั้งหมดต้องเป็นภาษาไทย เมื่อกล่าวถึงผลิตภัณฑ์ ให้อ้างอิงข้อมูลจากเว็บไซต์ที่ให้มา"
+                    : "You are a digital marketing expert and content creator for 'Local For You' (website: https://localforyou.com/), a company providing marketing and tech solutions specifically for Thai restaurants and massage shops. Your mission is to create social media content that engages the target audience of 'business owners'. The content must be useful, interesting, and demonstrate Local For You's expertise in helping their businesses grow. All ideas must be in English. When mentioning products, refer to the information on the provided website.";
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    system_instruction: { parts: [{ text: systemPrompt }] },
+                };
+                
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429 && retries > 0) {
+                            console.warn(`Rate limited. Retrying in ${delay / 1000}s...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            return callGeminiAPI(userQuery, retries - 1, delay * 2);
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (error) {
+                    console.error("API call failed:", error);
+                     if (retries > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return callGeminiAPI(userQuery, retries - 1, delay * 2);
+                    }
+                    throw error;
+                }
+            };
+
+            const generateIdeas = async (category, month, country, lang) => {
+                loader.classList.remove('hidden');
+                resultsContainer.innerHTML = '';
+                errorMessage.classList.add('hidden');
+                generateBtn.disabled = true;
+
+                const holidays = month ? getHolidays(country, month) : null;
+                const holidaysText = holidays ? (lang === 'th' ? ` (เช่น ${holidays})` : ` (e.g., ${holidays})`) : '';
+
+                const monthContext = month 
+                    ? (lang === 'th' 
+                        ? ` โดยให้เนื้อหาเกี่ยวข้องหรือเข้ากับบรรยากาศของเดือน '${translations.th.months[month.toLowerCase()]}' ในประเทศ '${country}' รวมถึงเทศกาลสำคัญที่อาจเกิดขึ้นในเดือนนั้น${holidaysText} เพื่อให้คอนเทนต์มีความสดใหม่และตรงกับช่วงเวลา` 
+                        : ` with content relevant to the atmosphere of '${month}' in '${country}', including any major holidays or festivals that might occur${holidaysText}, to make the content timely and fresh`)
+                    : (lang === 'th'
+                        ? ` โดยอิงบริบทของประเทศ '${country}'`
+                        : ` based on the context of '${country}'`);
+                
+                const baseQueryStructure = lang === 'th' ? `แต่ละไอเดียต้องมี:
+**หัวข้อคอนเทนต์:** (เป็นข้อความที่ดึงดูดและน่าสนใจสำหรับเจ้าของกิจการ ห้ามขึ้นต้นด้วยตัวเลขและจุด)
+**ประเภทมีเดีย:** (เช่น Infographic, อัลบั้มภาพ, ภาพเดี่ยว, วิดีโอสั้น)
+**Copy Write (ฉบับร่าง):** (เขียน Copy Write สำหรับ Facebook Caption ในโทนกึ่งทางการและเป็นกันเอง ความยาวประมาณ 2-3 ประโยค พร้อมใส่อีโมจิที่เกี่ยวข้องกับเนื้อหา)
+
+**สำคัญมาก:** ให้คั่นแต่ละไอเดียด้วยเส้นแนวนอน '---'` : `Each idea must contain:
+**Content Title:** (An attractive and interesting title for business owners. Do not start with a number and a period.)
+**Media Type:** (e.g., Infographic, Photo Album, Single Image, Short Video)
+**Copy Write (Draft):** (Write a Facebook Caption in a semi-formal, friendly tone, about 2-3 sentences long, and include relevant emojis.)
+
+**VERY IMPORTANT:** Separate each idea with a horizontal line '---'`;
+                
+                let userQuery = '';
+                const queries = {
+                    'Content to Share': {
+                        th: `สร้าง 4 ไอเดียคอนเทนต์ประเภท 'Content to Share' สำหรับเจ้าของร้านอาหารและร้านนวดไทย${monthContext}. ไอเดียอาจจะเป็นข่าวสารในวงการ (เช่น เทรนด์ร้านอาหาร, เทรนด์ Wellness), เคล็ดลับการตลาดที่นำไปใช้ได้จริง, หรือข้อมูลเชิงลึกที่พวกเขาสามารถแชร์ต่อได้ ${baseQueryStructure}`,
+                        en: `Generate 4 'Content to Share' ideas for Thai restaurant and massage shop owners${monthContext}. Ideas could be industry news (e.g., restaurant trends, wellness trends), practical marketing tips, or insights they can share. ${baseQueryStructure}`
+                    },
+                    'Product Highlight': {
+                        th: `สร้าง 4 ไอเดียคอนเทนต์ประเภท 'Product Highlight' เพื่อโปรโมทผลิตภัณฑ์ของ Local For You ให้กับเจ้าของกิจการ${monthContext}. ให้อ้างอิงข้อมูลผลิตภัณฑ์และบริการจากเว็บไซต์ https://localforyou.com/ เพื่อให้ข้อมูลถูกต้อง แสดงให้เห็นว่าผลิตภัณฑ์เหล่านี้ช่วยแก้ปัญหาและเพิ่มยอดขายได้อย่างไร ${baseQueryStructure}`,
+                        en: `Generate 4 'Product Highlight' ideas to promote Local For You's products to business owners${monthContext}. Reference product and service information from the website https://localforyou.com/ for accuracy. Show how these products solve problems and increase sales. ${baseQueryStructure}`
+                    },
+                    'Audience Application': {
+                        th: `สร้าง 4 ไอเดียคอนเทนต์ประเภท 'Audience Application' ที่กระตุ้นให้เจ้าของร้านอาหารและร้านนวดนำไปปรับใช้กับธุรกิจของตนเอง${monthContext}. สำคัญ: ห้ามสร้างกรณีศึกษา (Case Study) ที่อ้างอิงชื่อร้านและความสำเร็จขึ้นมาเองโดยไม่มีข้อมูลจริง ให้เน้นการสร้างคอนเทนต์ประเภท How-to, Checklist, หรือ Template กรณีศึกษาที่ให้เจ้าของร้านนำไปปรับใช้กับข้อมูลของตัวเองได้ ${baseQueryStructure}`,
+                        en: `Generate 4 'Audience Application' content ideas that encourage restaurant and massage shop owners to apply them to their business${monthContext}. Important: Do not create fictional case studies. Focus on How-to guides, Checklists, or Templates that owners can adapt for their own business. ${baseQueryStructure}`
+                    },
+                     'Activity/Mini Game': {
+                        th: `สร้าง 4 ไอเดียคอนเทนต์ประเภท 'Activity/Mini Game' สำหรับเล่นกับเจ้าของร้านอาหารและร้านนวดบนโซเชียลมีเดีย${monthContext}. อาจเป็นเกมทายปัญหา, Quiz, หรือ Poll ที่เกี่ยวข้องกับการตลาด, การจัดการร้าน, หรือเทคโนโลยีของ Local For You เพื่อสร้างการมีส่วนร่วม ${baseQueryStructure}`,
+                        en: `Generate 4 'Activity/Mini Game' content ideas to engage with restaurant and massage shop owners on social media${monthContext}. Could be a riddle, quiz, or poll related to marketing, management, or Local For You's technology to create engagement. ${baseQueryStructure}`
+                    }
+                };
+                userQuery = queries[category][lang];
+                
+                try {
+                    const responseText = await callGeminiAPI(userQuery);
+                    if (responseText) {
+                        displayIdeas(responseText);
+                    } else {
+                        throw new Error("No content received from API.");
+                    }
+                } catch (error) {
+                    console.error('Error generating ideas:', error);
+                    errorMessage.classList.remove('hidden');
+                } finally {
+                    loader.classList.add('hidden');
+                    generateBtn.disabled = false;
+                }
+            };
+            
+            const displayIdeas = (text) => {
+                resultsContainer.innerHTML = '';
+                const ideas = text.split('---').filter(idea => idea.trim() !== '');
+
+                ideas.forEach((ideaText, index) => {
+                    const cardId = `card-${Date.now()}-${index}`;
+                    
+                    const lang = languageSelector.value;
+                    const titleKey = lang === 'th' ? '**หัวข้อคอนเทนต์:**' : '**Content Title:**';
+                    const mediaKey = lang === 'th' ? '**ประเภทมีเดีย:**' : '**Media Type:**';
+                    const copyKey = lang === 'th' ? '**Copy Write (ฉบับร่าง):**' : '**Copy Write (Draft):**';
+
+                    let title = null, mediaType = null, copyWrite = null;
+                    
+                    ideaText.trim().split('\n').forEach(part => {
+                        if (part.includes(titleKey)) title = part.replace(titleKey, '').replace(/^\d+\.\s*/, '').trim();
+                        else if (part.includes(mediaKey)) mediaType = part.replace(mediaKey, '').trim();
+                        else if (part.includes(copyKey)) copyWrite = part.replace(copyKey, '').trim();
+                    });
+
+                    if (!title || !mediaType || !copyWrite) return; // Skip incomplete ideas
+
+                    // Initialize card state
+                    currentCardData[cardId] = {
+                        title,
+                        mediaType,
+                        copyWrite,
+                        originalFullPost: null,
+                        approvedCaption: null,
+                        isApproved: false,
+                        selectedMedia: null, // { type: 'image'/'video', source: 'ai'/'upload', data: 'url/base64/file' }
+                        fbPage: null // { id, access_token }
+                    };
+
+                    const card = document.createElement('div');
+                    card.className = 'idea-card bg-white p-5 rounded-lg shadow-md border border-gray-200';
+                    card.style.animationDelay = `${index * 0.1}s`;
+                    card.id = cardId;
+
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex justify-between items-start gap-4">
+                                <div>
+                                    <h3 class="text-xl font-bold text-emerald-600">${title}</h3>
+                                    <span class="inline-block bg-emerald-100 text-emerald-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full mt-2">${mediaType}</span>
+                                </div>
+                                <button class="copy-btn shrink-0 bg-gray-200 text-gray-700 text-sm font-medium py-1 px-3 rounded-full hover:bg-gray-300">${getTranslation('copy')}</button>
+                            </div>
+                            <p class="text-gray-600 mt-3">${copyWrite}</p>
+                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                <button class="expand-btn w-full text-center bg-emerald-50 text-emerald-700 font-semibold py-2 px-4 rounded-lg hover:bg-emerald-100">
+                                    ${getTranslation('expandButton')}
+                                </button>
+                                <div class="expansion-loader hidden text-center mt-3">
+                                    <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500"></div>
+                                    <span class="ml-2 text-sm text-gray-500">${getTranslation('writing')}</span>
+                                </div>
+                                <div class="expanded-content-container hidden mt-4">
+                                    <div class="p-4 bg-gray-50 rounded-lg">
+                                        <div class="flex justify-between items-start">
+                                            <div>
+                                                <h4 class="font-bold text-lg mb-2">${getTranslation('fullPost')}</h4>
+                                                <div class="full-post-content text-gray-700" contenteditable="true"></div>
+                                            </div>
+                                             <div class="tone-adjuster-container ml-4 flex-shrink-0">
+                                                <label class="block text-xs font-semibold mb-1 text-right">${getTranslation('adjustToneLabel')}</label>
+                                                <div class="flex gap-2">
+                                                    <select class="tone-selector grow border border-gray-300 rounded-md p-1 text-xs">
+                                                        <option value="default">${getTranslation('toneDefault')}</option>
+                                                        <option value="professional">${getTranslation('toneProfessional')}</option>
+                                                        <option value="playful">${getTranslation('tonePlayful')}</option>
+                                                        <option value="persuasive">${getTranslation('tonePersuasive')}</option>
+                                                    </select>
+                                                    <button class="rewrite-btn bg-gray-600 text-white font-bold py-1 px-2 rounded-lg hover:bg-gray-700 text-xs">${getTranslation('rewriteButton')}</button>
+                                                </div>
+                                                <div class="rewrite-loader hidden text-center mt-2 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i> ${getTranslation('rewriting')}</div>
+                                            </div>
+                                        </div>
+                                        <button class="approve-caption-btn mt-4 bg-blue-500 text-white text-sm font-medium py-2 px-4 rounded-full hover:bg-blue-600">${getTranslation('approveCaption')}</button>
+                                    </div>
+                                    <div class="p-4 bg-gray-50 rounded-lg mt-3">
+                                        <h4 class="font-bold text-lg mb-2">${getTranslation('artworkRec')}</h4>
+                                        <div class="artwork-rec-content text-gray-700"></div>
+                                    </div>
+                                    
+                                    <!-- MEDIA PANEL -->
+                                    <div class="mt-4 border-t pt-4">
+                                        <h4 class="font-bold text-lg mb-2">${getTranslation('mediaTitle')}</h4>
+                                        <div class="flex border-b mb-3">
+                                            <button class="media-tab-btn active border-b-2 pb-1 px-4 text-sm font-semibold" data-tab="ai-generate">${getTranslation('aiTab')}</button>
+                                            <button class="media-tab-btn border-b-2 border-transparent pb-1 px-4 text-sm text-gray-500 font-semibold" data-tab="upload">${getTranslation('uploadTab')}</button>
+                                        </div>
+                                        
+                                        <!-- AI Generate Tab Content -->
+                                        <div class="media-tab-content" id="ai-generate-${cardId}">
+                                            <div class="space-y-3">
+                                                <div>
+                                                    <label class="text-sm font-medium">${getTranslation('aiPromptLabel')}</label>
+                                                    <textarea class="ai-prompt-textarea w-full border border-gray-300 rounded-md p-2 mt-1 text-sm" rows="4"></textarea>
+                                                </div>
+                                                <div>
+                                                    <label class="text-sm font-medium">${getTranslation('aspectRatioLabel')}</label>
+                                                    <select class="aspect-ratio-selector w-full border border-gray-300 rounded-md p-2 mt-1 text-sm">
+                                                        <option value="1:1">1:1 (Square)</option>
+                                                        <option value="16:9">16:9 (Landscape)</option>
+                                                        <option value="9:16">9:16 (Portrait)</option>
+                                                        <option value="4:5">4:5 (Vertical)</option>
+                                                    </select>
+                                                </div>
+                                                <button class="generate-media-btn bg-emerald-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-600 w-full">${getTranslation('generateMedia')}</button>
+                                                <div class="ai-media-loader hidden text-center mt-2"><i class="fas fa-spinner fa-spin mr-2"></i> ${getTranslation('generating')}</div>
+                                                <div class="ai-media-results grid grid-cols-2 md:grid-cols-4 gap-2 mt-2"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Upload Tab Content -->
+                                        <div class="media-tab-content hidden" id="upload-${cardId}">
+                                            <div class="upload-area border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                                                <div class="upload-prompt">
+                                                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
+                                                    <p class="mt-2 text-sm text-gray-600">${getTranslation('uploadAreaText')} <button class="browse-btn font-semibold text-emerald-600 hover:underline">${getTranslation('browse')}</button></p>
+                                                    <input type="file" class="hidden file-input" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime">
+                                                </div>
+                                                <div class="upload-preview hidden"></div>
+                                            </div>
+                                        </div>
+                                         <p class="media-helper-text text-center text-sm text-gray-500 mt-2">${getTranslation('mediaHelperText')}</p>
+                                    </div>
+                                    
+                                    <!-- FACEBOOK POST SECTION -->
+                                    <div class="mt-4 border-t pt-4">
+                                        <h4 class="font-bold text-lg mb-2 flex items-center">${getTranslation('approvedCaptionTitle')} <span class="editable-label hidden text-xs text-gray-500 ml-2">(✏️ ${getTranslation('editableLabel')})</span></h4>
+                                        <div class="approved-caption-display bg-gray-100 p-3 rounded-md text-sm text-gray-500 min-h-[50px] border border-gray-300" contenteditable="false">${getTranslation('noCaption')}</div>
+                                        
+                                        <div class="post-readiness-checklist mt-4 space-y-1 text-sm">
+                                            <div class="readiness-item" data-check="caption"><span class="icon mr-2">⚪</span> ${getTranslation('readinessChecklist', 'caption')}</div>
+                                            <div class="readiness-item" data-check="media"><span class="icon mr-2">⚪</span> ${getTranslation('readinessChecklist', 'media')}</div>
+                                            <div class="readiness-item" data-check="page"><span class="icon mr-2">⚪</span> ${getTranslation('readinessChecklist', 'page')}</div>
+                                        </div>
+
+                                        <div class="mt-3 flex gap-2">
+                                            <button class="connect-fb-btn bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 flex-grow"><i class="fab fa-facebook-f mr-2"></i> ${getTranslation('connectFacebook')}</button>
+                                            <div class="tooltip-container flex-grow">
+                                                <button class="post-fb-btn bg-gray-400 text-white font-bold py-2 px-4 rounded-lg w-full" disabled>${getTranslation('postToFacebook')}</button>
+                                                <span class="tooltip-text">${getTranslation('tooltipText')}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(card);
+                });
+            };
+            
+            const expandIdea = async (button, forceExpand = false) => {
+                const card = button.closest('.idea-card');
+                const cardId = card.id;
+                const { title, copyWrite } = currentCardData[cardId];
+
+                const loader = card.querySelector('.expansion-loader');
+                const contentContainer = card.querySelector('.expanded-content-container');
+                const fullPostDiv = card.querySelector('.full-post-content');
+
+                // Collapse other cards
+                if (!forceExpand) {
+                    document.querySelectorAll('.idea-card').forEach(otherCard => {
+                        if (otherCard.id !== cardId) {
+                            otherCard.querySelector('.expanded-content-container').classList.add('hidden');
+                            otherCard.querySelector('.expand-btn').textContent = getTranslation('expandButton');
+                        }
+                    });
+                }
+                
+                // Toggle current card
+                if (contentContainer.classList.contains('hidden')) {
+                     button.textContent = getTranslation('collapseButton');
+                } else {
+                     button.textContent = getTranslation('expandButton');
+                     contentContainer.classList.add('hidden');
+                     return;
+                }
+
+                // If content is already loaded, just show it
+                if (fullPostDiv.innerHTML !== '') {
+                    contentContainer.classList.remove('hidden');
+                    return;
+                }
+
+                const artworkRecDiv = card.querySelector('.artwork-rec-content');
+
+                button.classList.add('hidden');
+                loader.classList.remove('hidden');
+
+                const lang = languageSelector.value;
+
+                const userQuery = lang === 'th' ? `จากไอเดียคอนเทนต์นี้:
+- หัวข้อ: "${title}"
+- Copy Write (ฉบับร่าง): "${copyWrite}"
+จงทำ 2 อย่างต่อไปนี้:
+1.  **เขียนโพสต์ฉบับเต็ม:** นำ Copy Write ฉบับร่างมาขัดเกลาและขยายความเป็นโพสต์สำหรับ Facebook ที่สมบูรณ์ ใช้โทนกึ่งทางการ เป็นกันเอง และน่าสนใจสำหรับเจ้าของร้านอาหาร/ร้านนวด พร้อมใส่อีโมจิที่เกี่ยวข้องกับเนื้อหา, Call-to-action และชุดแฮชแท็กที่เกี่ยวข้อง (5-7 อัน)
+2.  **แนะนำ Artwork Graphic:** แนะนำแนวคิดสำหรับทำ Artwork ประกอบโพสต์ บอกองค์ประกอบที่ควรมี เช่น:
+    * **ภาพพื้นหลัง/ภาพหลัก:** (ควรเป็นภาพเกี่ยวกับอะไร)
+    * **ข้อความพาดหัว (Headline):** (ควรใช้ข้อความอะไรที่สั้นกระชับและดึงดูด)
+    * **องค์ประกอบเสริม:** (เช่น ไอคอน, โลโก้)
+**สำคัญมาก:** ให้จัดรูปแบบคำตอบโดยแบ่งเป็นหัวข้อ "**โพสต์ฉบับเต็ม**" และ "**คำแนะนำ Artwork**" อย่างชัดเจน` 
+: `From this content idea:
+- Title: "${title}"
+- Draft Copy: "${copyWrite}"
+Do the following two things:
+1.  **Write the Full Post:** Refine and expand the draft copy into a complete Facebook post. Use a semi-formal, friendly, and engaging tone suitable for restaurant/massage shop owners. Include relevant emojis, a call-to-action, and a relevant set of hashtags (5-7).
+2.  **Recommend Artwork Graphic:** Suggest a concept for the post's artwork. Describe the elements it should contain, such as:
+    * **Background/Main Image:** (What should the image be about?)
+    * **Headline Text:** (What short, catchy text should be used?)
+    * **Supporting Elements:** (e.g., icons, logos)
+**VERY IMPORTANT:** Format the response with clear headings "**Full Post**" and "**Artwork Recommendation**".`;
+
+                try {
+                    const responseText = await callGeminiAPI(userQuery);
+                     if (responseText) {
+                        const fullPostKey = lang === 'th' ? 'โพสต์ฉบับเต็ม' : 'Full Post';
+                        const artworkKey = lang === 'th' ? 'คำแนะนำ Artwork' : 'Artwork Recommendation';
+
+                        const postIndex = responseText.indexOf(artworkKey);
+                        let fullPostContent, artworkContent;
+
+                        if (postIndex !== -1) {
+                            fullPostContent = responseText.substring(responseText.indexOf(fullPostKey) + fullPostKey.length, postIndex).replace(/\*\*/g, '').trim();
+                            artworkContent = responseText.substring(postIndex + artworkKey.length).replace(/\*\*/g, '').trim();
+                        } else {
+                            fullPostContent = responseText.replace(/\*\*/g, '');
+                            artworkContent = 'N/A';
+                        }
+                        
+                        fullPostDiv.innerHTML = fullPostContent.replace(/\n/g, '<br>');
+                        currentCardData[cardId].originalFullPost = fullPostContent; // Store original post
+                        artworkRecDiv.innerHTML = artworkContent.replace(/\n/g, '<br>');
+
+                        contentContainer.classList.remove('hidden');
+                        prefillAIPrompt(cardId);
+                    } else {
+                        throw new Error("No expanded content received from API.");
+                    }
+                } catch(error) {
+                    console.error('Error expanding idea:', error);
+                    fullPostDiv.innerHTML = `<p class="text-red-500 text-sm">Sorry, could not expand this idea.</p>`;
+                    contentContainer.classList.remove('hidden');
+                } finally {
+                    loader.classList.add('hidden');
+                    button.classList.remove('hidden');
+                }
+            };
+
+            const handleToneRewrite = async (button) => {
+                const card = button.closest('.idea-card');
+                const cardId = card.id;
+                const fullPostDiv = card.querySelector('.full-post-content');
+                const currentPostText = fullPostDiv.innerText;
+                
+                if (!currentPostText) {
+                    showToast('No content to rewrite.', 'error');
+                    return;
+                }
+                
+                const toneSelector = card.querySelector('.tone-selector');
+                const selectedTone = toneSelector.value;
+                const loader = card.querySelector('.rewrite-loader');
+
+                if (selectedTone === 'default' && currentCardData[cardId].originalFullPost) {
+                    fullPostDiv.innerHTML = currentCardData[cardId].originalFullPost.replace(/\n/g, '<br>');
+                    return;
+                }
+
+                button.disabled = true;
+                toneSelector.disabled = true;
+                loader.classList.remove('hidden');
+
+                const lang = languageSelector.value;
+                const userQuery = lang === 'th'
+                    ? `เขียนโพสต์โซเชียลมีเดียต่อไปนี้ใหม่ให้มีโทนเสียงแบบ '${selectedTone}' โดยคงข้อความหลัก, call to action, และแฮชแท็กไว้ แต่ปรับเปลี่ยนสำนวนและสไตล์การเขียน และต้องมีอีโมจิที่เข้ากับเนื้อหาด้วย:\n\n---\n\n${currentPostText}`
+                    : `Rewrite the following social media post to have a '${selectedTone}' tone. Keep the core message, call to action, and hashtags, but adjust the wording and style, ensuring it includes relevant emojis:\n\n---\n\n${currentPostText}`;
+
+                try {
+                    const rewrittenText = await callGeminiAPI(userQuery);
+                    if (rewrittenText) {
+                        fullPostDiv.innerHTML = rewrittenText.replace(/\n/g, '<br>');
+                    } else {
+                        throw new Error("Failed to get rewritten content.");
+                    }
+                } catch (error) {
+                    console.error("Tone rewrite error:", error);
+                    showToast('Failed to rewrite content.', 'error');
+                } finally {
+                    button.disabled = false;
+                    toneSelector.disabled = false;
+                    loader.classList.add('hidden');
+                }
+            };
+            
+            const copyToClipboard = (text, button) => {
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalText = button.textContent;
+                    button.textContent = getTranslation('copied');
+                    button.classList.remove('bg-gray-200', 'hover:bg-gray-300');
+                    button.classList.add('bg-green-500', 'text-white');
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.classList.remove('bg-green-500', 'text-white');
+                        button.classList.add('bg-gray-200', 'hover:bg-gray-300');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            };
+            
+            const showToast = (message, type = 'success') => {
+                const toastContainer = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.classList.add('show');
+                }, 100);
+
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 300);
+                }, 3000);
+            };
+
+            const prefillAIPrompt = (cardId) => {
+                const card = document.getElementById(cardId);
+                if (!card) return;
+                
+                const lang = languageSelector.value;
+                const country = countrySelector.value;
+                const month = monthSelector.options[monthSelector.selectedIndex].value || 'None';
+                const holidays = getHolidays(country, month) || 'None';
+                const { title } = currentCardData[cardId];
+                const promptTextarea = card.querySelector('.ai-prompt-textarea');
+
+                const template = lang === 'th' ? `แบนเนอร์การตลาดคุณภาพสูงสำหรับ Facebook หัวข้อ: "${title}" บริบทประเทศ: ${country} หากมี ให้อ้างอิงความเกี่ยวข้องกับเทศกาลของเดือน ${month}: ${holidays} โทน: กึ่งทางการ เป็นกันเอง สำหรับเจ้าของธุรกิจ (ร้านอาหารและร้านนวดไทย) เลย์เอาต์: มี headline ชัดเจน, ภาพดูปลอดภัยสำหรับแบรนด์, จุดโฟกัสเด่น, ขอบสะอาดตา ออกแบบให้คมชัด อ่านง่าย เหมาะกับฟีดมือถือ`
+                : `High-quality marketing banner for Facebook. Topic: "${title}". Country context: ${country}. If applicable, reference seasonal relevance/public holidays for ${month}: ${holidays}. Tone: semi-formal, friendly, for small business owners (restaurants & Thai massage). Layout: clear headline text overlay, brand-safe visual, strong focal point, clean margins. Deliver a crisp, legible design suitable for mobile feeds.`;
+
+                promptTextarea.value = template;
+            };
+
+            // --- MEDIA & FACEBOOK EVENT HANDLING (DELEGATION) ---
+            resultsContainer.addEventListener('click', (e) => {
+                const button = e.target.closest('button');
+                if (!button) return;
+
+                const card = e.target.closest('.idea-card');
+                const cardId = card.id;
+
+                // Standard Buttons
+                if (button.classList.contains('copy-btn')) {
+                    const { title, mediaType, copyWrite } = currentCardData[cardId];
+                    const textToCopy = `Title: ${title}\nMedia Type: ${mediaType}\nDescription: ${copyWrite}`;
+                    copyToClipboard(textToCopy, button);
+                }
+                if (button.classList.contains('expand-btn')) {
+                    expandIdea(button);
+                }
+                 if (button.classList.contains('rewrite-btn')) {
+                    handleToneRewrite(button);
+                }
+                if (button.classList.contains('approve-caption-btn')) {
+                    const cardState = currentCardData[cardId];
+                    cardState.isApproved = !cardState.isApproved; // Toggle state
+
+                    const approvedCaptionDiv = card.querySelector('.approved-caption-display');
+                    const editableLabel = card.querySelector('.editable-label');
+                    
+                    if(cardState.isApproved) {
+                        const fullPostContent = card.querySelector('.full-post-content').innerText;
+                        cardState.approvedCaption = fullPostContent;
+                        approvedCaptionDiv.textContent = fullPostContent;
+                        approvedCaptionDiv.contentEditable = "true";
+                        approvedCaptionDiv.classList.remove('bg-gray-100', 'text-gray-500');
+                        approvedCaptionDiv.classList.add('bg-white');
+                        editableLabel.classList.remove('hidden');
+
+                        button.textContent = getTranslation('unapproveCaption');
+                        button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                        button.classList.add('bg-green-600', 'hover:bg-green-700');
+                    } else {
+                        cardState.approvedCaption = null;
+                        approvedCaptionDiv.textContent = getTranslation('noCaption');
+                        approvedCaptionDiv.contentEditable = "false";
+                        approvedCaptionDiv.classList.add('bg-gray-100', 'text-gray-500');
+                        approvedCaptionDiv.classList.remove('bg-white');
+                        editableLabel.classList.add('hidden');
+                        
+                        button.textContent = getTranslation('approveCaption');
+                        button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                        button.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    }
+                    updatePostButtonState(cardId);
+                }
+
+                // Media Tabs
+                if (button.classList.contains('media-tab-btn')) {
+                    const tabName = button.dataset.tab;
+                    card.querySelectorAll('.media-tab-btn').forEach(t => t.classList.remove('active'));
+                    button.classList.add('active');
+                    card.querySelectorAll('.media-tab-content').forEach(c => c.classList.add('hidden'));
+                    card.querySelector(`#${tabName}-${cardId}`).classList.remove('hidden');
+                }
+
+                // AI Generate
+                if (button.classList.contains('generate-media-btn')) {
+                    handleAiGenerate(button);
+                }
+                 if (button.classList.contains('use-this-btn')) {
+                    const mediaContainer = button.closest('.relative');
+                    const imageUrl = mediaContainer.querySelector('img').src;
+                    
+                    // Deselect others
+                    card.querySelectorAll('.media-selected').forEach(el => el.classList.remove('media-selected'));
+                    card.querySelectorAll('.border-emerald-500').forEach(el => el.classList.remove('border-emerald-500', 'border-4'));
+
+                    // Select this one
+                    mediaContainer.classList.add('media-selected');
+                    mediaContainer.querySelector('img').classList.add('border-emerald-500', 'border-4');
+                    
+                    currentCardData[cardId].selectedMedia = { type: 'image', source: 'ai', data: imageUrl };
+                    showToast('Image selected!');
+                    updatePostButtonState(cardId);
+                }
+
+                // Upload
+                if (button.classList.contains('browse-btn')) {
+                    card.querySelector('.file-input').click();
+                }
+                if (button.classList.contains('remove-upload-btn')) {
+                    const uploadPreview = card.querySelector('.upload-preview');
+                    const uploadPrompt = card.querySelector('.upload-prompt');
+                    uploadPreview.innerHTML = '';
+                    uploadPreview.classList.add('hidden');
+                    uploadPrompt.classList.remove('hidden');
+                    currentCardData[cardId].selectedMedia = null;
+                    updatePostButtonState(cardId);
+                }
+
+                // Facebook
+                if (button.classList.contains('connect-fb-btn')) {
+                    fbLogin(cardId);
+                }
+                if (button.classList.contains('post-fb-btn')) {
+                    postToFacebook(cardId);
+                }
+            });
+            
+             resultsContainer.addEventListener('change', (e) => {
+                if (e.target.classList.contains('file-input')) {
+                    const card = e.target.closest('.idea-card');
+                    handleFileUpload(e.target.files[0], card.id);
+                }
+            });
+            
+            resultsContainer.addEventListener('input', (e) => {
+                const editableCaption = e.target.closest('.approved-caption-display');
+                if (editableCaption) {
+                    const card = editableCaption.closest('.idea-card');
+                    if (card) {
+                        const cardId = card.id;
+                        currentCardData[cardId].approvedCaption = editableCaption.innerText;
+                        updatePostButtonState(cardId); // Re-check state, though caption approved status doesn't change on edit
+                    }
+                }
+             });
+
+             // --- MEDIA GENERATION & UPLOAD LOGIC ---
+
+            const handleAiGenerate = async (button) => {
+                const card = button.closest('.idea-card');
+                const cardId = card.id;
+                const prompt = card.querySelector('.ai-prompt-textarea').value;
+                const loader = card.querySelector('.ai-media-loader');
+                const resultsDiv = card.querySelector('.ai-media-results');
+
+                button.disabled = true;
+                loader.classList.remove('hidden');
+                resultsDiv.innerHTML = '';
+                
+                const generateWithRetry = async (retries = 3, delay = 1000) => {
+                    try {
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`;
+                        
+                        const payload = {
+                            contents: [{
+                                parts: [{ text: prompt }]
+                            }],
+                            generationConfig: {
+                                responseModalities: ['IMAGE']
+                            },
+                        };
+
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                             if (response.status === 429 && retries > 0) {
+                                console.warn(`Image generation rate limited. Retrying in ${delay / 1000}s...`);
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                                return generateWithRetry(retries - 1, delay * 2);
+                            }
+                            throw new Error(`Image generation failed: ${response.status} ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        const imagePart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+
+                        if (imagePart) {
+                            const b64Data = imagePart.inlineData.data;
+                            const imageUrl = `data:image/png;base64,${b64Data}`;
+                            const imgContainer = document.createElement('div');
+                            imgContainer.className = 'relative group cursor-pointer';
+                            imgContainer.innerHTML = `
+                                <img src="${imageUrl}" class="w-full h-full object-cover rounded-md"/>
+                                <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button class="use-this-btn text-white text-xs bg-emerald-600 px-2 py-1 rounded">${getTranslation('useThis')}</button>
+                                </div>
+                            `;
+                            resultsDiv.appendChild(imgContainer);
+                        } else {
+                            console.error("Image generation API response:", result);
+                            const blockReason = result?.candidates?.[0]?.finishReason;
+                            if(blockReason === 'SAFETY') {
+                                showToast(getTranslation('imgGenSafety'), 'error');
+                            } else {
+                                throw new Error('No image data found in API response.');
+                            }
+                        }
+                    } catch (error) {
+                         if (retries > 0) {
+                            console.warn(`Image generation fetch failed. Retrying in ${delay / 1000}s...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            return generateWithRetry(retries - 1, delay * 2);
+                        }
+                        throw error;
+                    }
+                }
+
+                try {
+                    await generateWithRetry();
+                } catch(error) {
+                     console.error('AI Media Generation Error:', error);
+                    showToast(getTranslation('imgGenError'), 'error');
+                } finally {
+                    button.disabled = false;
+                    loader.classList.add('hidden');
+                }
+            };
+
+            const handleFileUpload = (file, cardId) => {
+                if (!file) return;
+                const card = document.getElementById(cardId);
+                const uploadPreview = card.querySelector('.upload-preview');
+                const uploadPrompt = card.querySelector('.upload-prompt');
+                
+                const isImage = file.type.startsWith('image/');
+                const isVideo = file.type.startsWith('video/');
+
+                if (!isImage && !isVideo) {
+                    showToast('Unsupported file type.', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const fileUrl = e.target.result;
+                    let previewHtml = '';
+                    if (isImage) {
+                        previewHtml = `<img src="${fileUrl}" class="max-h-32 rounded-md mx-auto mb-2"/>`;
+                        currentCardData[cardId].selectedMedia = { type: 'image', source: 'upload', data: file };
+                    } else {
+                        previewHtml = `<video src="${fileUrl}" class="max-h-32 rounded-md mx-auto mb-2" controls></video>`;
+                        currentCardData[cardId].selectedMedia = { type: 'video', source: 'upload', data: file };
+                    }
+                     // Add border and checkmark
+                    uploadPreview.innerHTML = `
+                        <div class="relative inline-block media-selected">
+                            ${previewHtml}
+                        </div>
+                        <div class="flex justify-center gap-2 mt-2">
+                            <button class="remove-upload-btn text-sm text-red-600 font-semibold">${getTranslation('remove')}</button>
+                        </div>`;
+
+                    uploadPrompt.classList.add('hidden');
+                    uploadPreview.classList.remove('hidden');
+                    updatePostButtonState(cardId);
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const updatePostButtonState = (cardId) => {
+                const card = document.getElementById(cardId);
+                const postBtn = card.querySelector('.post-fb-btn');
+                const tooltipContainer = postBtn.parentElement;
+                const checklistItems = card.querySelectorAll('.readiness-item');
+                const { isApproved, selectedMedia, fbPage } = currentCardData[cardId];
+                
+                const checks = {
+                    caption: isApproved,
+                    media: !!selectedMedia,
+                    page: !!fbPage
+                };
+
+                let allChecked = true;
+                checklistItems.forEach(item => {
+                    const checkType = item.dataset.check;
+                    const icon = item.querySelector('.icon');
+                    if (checks[checkType]) {
+                        icon.textContent = '✅';
+                        item.classList.add('text-green-600');
+                        item.classList.remove('text-gray-500');
+                    } else {
+                        icon.textContent = '⚪';
+                        item.classList.remove('text-green-600');
+                        item.classList.add('text-gray-500');
+                        allChecked = false;
+                    }
+                });
+
+                const mediaHelper = card.querySelector('.media-helper-text');
+                if (mediaHelper) {
+                    mediaHelper.style.display = checks.media ? 'none' : 'block';
+                }
+
+                if (allChecked) {
+                    postBtn.disabled = false;
+                    postBtn.classList.remove('bg-gray-400');
+                    postBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    tooltipContainer.classList.remove('tooltip-container'); // Disable tooltip
+                } else {
+                    postBtn.disabled = true;
+                    postBtn.classList.add('bg-gray-400');
+                    postBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    if (!tooltipContainer.classList.contains('tooltip-container')) {
+                         tooltipContainer.classList.add('tooltip-container'); // Enable tooltip
+                    }
+                }
+            };
+            
+            // --- FACEBOOK SDK & API LOGIC ---
+            
+            window.fbAsyncInit = function() {
+                FB.init({
+                    appId      : FACEBOOK_APP_ID,
+                    cookie     : true,
+                    xfbml      : true,
+                    version    : 'v19.0'
+                });
+                FB.AppEvents.logPageView();
+            };
+
+            const fbLogin = (cardId) => {
+                FB.login(function(response) {
+                    if (response.authResponse) {
+                        fetchUserPages(response.authResponse.accessToken, cardId);
+                    } else {
+                        console.log('User cancelled login or did not fully authorize.');
+                        showToast(getTranslation('fbConnectError'), 'error');
+                    }
+                }, {scope: 'pages_show_list,pages_manage_posts,pages_read_engagement'});
+            };
+            
+            const fetchUserPages = (userAccessToken, cardId) => {
+                FB.api('/me/accounts', { access_token: userAccessToken }, function(response) {
+                    if (response && !response.error) {
+                       // For simplicity, we'll use the first page. In a real app, you'd let the user choose.
+                       if (response.data && response.data.length > 0) {
+                           const firstPage = response.data[0];
+                           currentCardData[cardId].fbPage = {
+                               id: firstPage.id,
+                               access_token: firstPage.access_token
+                           };
+                           const card = document.getElementById(cardId);
+                           card.querySelector('.connect-fb-btn').textContent = `Connected: ${firstPage.name}`;
+                           card.querySelector('.connect-fb-btn').disabled = true;
+                           showToast(`Connected to page: ${firstPage.name}`);
+                           updatePostButtonState(cardId);
+                       } else {
+                           showToast('No Facebook pages found.', 'error');
+                       }
+                    } else {
+                        console.error('Error fetching pages:', response.error);
+                        showToast(getTranslation('fbConnectError'), 'error');
+                    }
+                });
+            };
+
+            const base64ToBlob = (base64, contentType = '', sliceSize = 512) => {
+                const byteCharacters = atob(base64.split(',')[1]);
+                const byteArrays = [];
+                for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                    const slice = byteCharacters.slice(offset, offset + sliceSize);
+                    const byteNumbers = new Array(slice.length);
+                    for (let i = 0; i < slice.length; i++) {
+                        byteNumbers[i] = slice.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    byteArrays.push(byteArray);
+                }
+                return new Blob(byteArrays, { type: contentType });
+            }
+
+            const postToFacebook = (cardId) => {
+                const { approvedCaption, selectedMedia, fbPage } = currentCardData[cardId];
+                if (!approvedCaption || !selectedMedia || !fbPage) {
+                    showToast('Missing caption, media, or page connection.', 'error');
+                    return;
+                }
+
+                const card = document.getElementById(cardId);
+                const postBtn = card.querySelector('.post-fb-btn');
+                postBtn.disabled = true;
+                postBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Posting...`;
+                
+                const formData = new FormData();
+                formData.append('access_token', fbPage.access_token);
+                
+                let endpoint = '';
+                let file = null;
+
+                if (selectedMedia.type === 'image') {
+                    endpoint = `/${fbPage.id}/photos`;
+                    formData.append('caption', approvedCaption);
+                    file = selectedMedia.source === 'ai' 
+                        ? base64ToBlob(selectedMedia.data, 'image/png') 
+                        : selectedMedia.data;
+                } else { // video
+                    endpoint = `/${fbPage.id}/videos`;
+                    formData.append('description', approvedCaption);
+                    // Video upload from base64 is tricky and often fails. We only support file object upload for video for robustness.
+                    if (selectedMedia.source !== 'upload') {
+                         showToast('Video posting only supported from local upload.', 'error');
+                         postBtn.disabled = false;
+                         postBtn.innerHTML = getTranslation('postToFacebook');
+                         return;
+                    }
+                    file = selectedMedia.data;
+                }
+                formData.append('source', file);
+
+                fetch(`https://graph.facebook.com${endpoint}`, {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.id || data.post_id) {
+                        showToast(getTranslation('postSuccess'));
+                        postBtn.innerHTML = `Posted!`;
+                        postBtn.classList.add('bg-green-600');
+                    } else {
+                        throw new Error(data.error?.message || 'Unknown error');
+                    }
+                })
+                .catch(error => {
+                    console.error('FB Post Error:', error);
+                    showToast(`${getTranslation('postError')}: ${error.message}`, 'error');
+                    postBtn.disabled = false;
+                    postBtn.innerHTML = getTranslation('postToFacebook');
+                });
+            };
+
+
+            // Initial UI setup
+            updateUIForLanguage();
+        });
+    </script>
+</body>
+</html>
+

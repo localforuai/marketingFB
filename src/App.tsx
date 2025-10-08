@@ -41,19 +41,23 @@ function App() {
   const [postingCard, setPostingCard] = useState<string | null>(null); // State for loading indicator
 
   useEffect(() => {
-    // Initialize Facebook SDK
-    (window as any).fbAsyncInit = function() {
-      (window as any).FB.init({
-        appId: FACEBOOK_APP_ID,
-        cookie: true,
-        xfbml: true,
-        version: 'v19.0'
-      });
-      console.log('Facebook SDK initialized with App ID:', FACEBOOK_APP_ID);
-    };
-
     // Load Facebook SDK script
-    if (!(window as any).FB) {
+    const loadFacebookSDK = () => {
+      if ((window as any).FB) {
+        return;
+      }
+
+      // Define fbAsyncInit before loading the script
+      (window as any).fbAsyncInit = function() {
+        (window as any).FB.init({
+          appId: FACEBOOK_APP_ID,
+          cookie: true,
+          xfbml: true,
+          version: 'v21.0'
+        });
+        console.log('Facebook SDK initialized with App ID:', FACEBOOK_APP_ID);
+      };
+
       const script = document.createElement('script');
       script.id = 'facebook-jssdk';
       script.src = 'https://connect.facebook.net/en_US/sdk.js';
@@ -61,9 +65,10 @@ function App() {
       script.defer = true;
       script.crossOrigin = 'anonymous';
 
-      const firstScript = document.getElementsByTagName('script')[0];
-      firstScript.parentNode?.insertBefore(script, firstScript);
-    }
+      document.body.appendChild(script);
+    };
+
+    loadFacebookSDK();
   }, []);
 
   const categories = [
@@ -490,7 +495,7 @@ function App() {
         }
   
         // Step 1: Upload the photo to get a media ID
-        const uploadResponse = await fetch(`https://graph.facebook.com/v19.0/${card.fbPage.id}/photos`, {
+        const uploadResponse = await fetch(`https://graph.facebook.com/v21.0/${card.fbPage.id}/photos`, {
           method: 'POST',
           body: formData,
         });
@@ -505,7 +510,7 @@ function App() {
         const mediaId = uploadResult.id;
   
         // Step 2: Create the post using the media ID
-        const postResponse = await fetch(`https://graph.facebook.com/v19.0/${card.fbPage.id}/feed`, {
+        const postResponse = await fetch(`https://graph.facebook.com/v21.0/${card.fbPage.id}/feed`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
